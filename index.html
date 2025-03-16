@@ -2,7 +2,7 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>尤其远的扫雷游戏</title>
+    <title>扫雷游戏</title>
     <style>
         :root {
             --neon-color: #0ff;
@@ -52,6 +52,15 @@
             color: var(--neon-color);
             border-radius: 5px;
             width: 120px;
+        }
+
+        .difficulty-select {
+            background: #444;
+            border: 2px solid var(--neon-color);
+            color: var(--neon-color);
+            padding: 8px;
+            border-radius: 5px;
+            width: 100%;
         }
 
         button {
@@ -164,29 +173,34 @@
 <body>
     <div class="game-container">
         <div>
-            <div class="status" id="status">点击开始</div>
+            <h1>🎯 尤其远的扫雷游戏</h1>
+            <div class="status" id="status">点击开始游戏</div>
             <table class="grid" id="grid"></table>
         </div>
         
         <div class="config-panel">
-            <div class="info-panel">
-                <div class="info-item">总雷数: <span class="neon-text" id="total-mines">3</span></div>
-                <div class="info-item">已标记: <span class="neon-text" id="flags-marked">0</span></div>
-            </div>
-            
+            <select class="difficulty-select" id="difficulty" onchange="setDifficulty()">
+                <option value="beginner" selected>初级 (8×8，10雷)</option>
+                <option value="intermediate">中级 (16×16，40雷)</option>
+                <option value="expert">高级 (30×16，99雷)</option>
+            </select>
+
             <div class="config-item">
                 <label>行数:</label>
-                <input type="number" id="rows" value="8" min="3" max="10">
+                <input type="number" id="rows" value="8" min="3" max="30">
             </div>
-            
             <div class="config-item">
                 <label>列数:</label>
-                <input type="number" id="cols" value="8" min="3" max="10">
+                <input type="number" id="cols" value="8" min="3" max="30">
             </div>
-            
             <div class="config-item">
                 <label>雷数:</label>
-                <input type="number" id="mines" value="12" min="1" max="20">
+                <input type="number" id="mines" value="10" min="1" max="200">
+            </div>
+
+            <div class="info-panel">
+                <div class="info-item">总雷数: <span class="neon-text" id="total-mines">10</span></div>
+                <div class="info-item">已标记: <span class="neon-text" id="flags-marked">0</span></div>
             </div>
             
             <button onclick="initGame()">开始游戏</button>
@@ -194,20 +208,47 @@
     </div>
 
     <script>
+        const DIFFICULTY = {
+            beginner: { rows: 8, cols: 8, mines: 10 },
+            intermediate: { rows: 16, cols: 16, mines: 40 },
+            expert: { rows: 16, cols: 30, mines: 99 }
+        };
+
+        let currentDifficulty = 'beginner';
         let rows = 8;
         let cols = 8;
-        let minesCount = 12;
+        let minesCount = 10;
         let grid = [];
         let mines = [];
         let gameOver = false;
         let flagsMarked = 0;
 
+        function setDifficulty() {
+            currentDifficulty = document.getElementById('difficulty').value;
+            const config = DIFFICULTY[currentDifficulty];
+            
+            document.getElementById('rows').value = config.rows;
+            document.getElementById('cols').value = config.cols;
+            document.getElementById('mines').value = config.mines;
+            
+            rows = config.rows;
+            cols = config.cols;
+            minesCount = config.mines;
+            
+            document.getElementById('total-mines').textContent = config.mines;
+        }
+
         function initGame() {
-            // 读取并验证参数
-            rows = Math.min(Math.max(parseInt(document.getElementById('rows').value) || 5, 3), 10);
-            cols = Math.min(Math.max(parseInt(document.getElementById('cols').value) || 5, 3), 10);
-            const maxMines = Math.floor(rows * cols * 0.3);
-            minesCount = Math.min(Math.max(parseInt(document.getElementById('mines').value) || 3, 1), maxMines);
+            // 读取参数
+            rows = parseInt(document.getElementById('rows').value) || 8;
+            cols = parseInt(document.getElementById('cols').value) || 8;
+            minesCount = parseInt(document.getElementById('mines').value) || 10;
+            
+            // 参数验证
+            rows = Math.min(Math.max(rows, 3), 30);
+            cols = Math.min(Math.max(cols, 3), 30);
+            const maxMines = Math.floor(rows * cols * 0.7);
+            minesCount = Math.min(Math.max(minesCount, 1), maxMines);
             
             // 更新显示
             document.getElementById('rows').value = rows;
@@ -215,11 +256,11 @@
             document.getElementById('mines').value = minesCount;
             document.getElementById('total-mines').textContent = minesCount;
 
-            // 初始化游戏状态
+            // 初始化状态
             gameOver = false;
             flagsMarked = 0;
             document.getElementById('status').className = 'status';
-            document.getElementById('status').textContent = '尤其远，游戏进行中...';
+            document.getElementById('status').textContent = '游戏进行中...';
             document.getElementById('flags-marked').textContent = '0';
 
             // 创建网格
@@ -235,12 +276,14 @@
 
             // 布置地雷
             mines = [];
-            while(mines.length < minesCount) {
+            let minesPlaced = 0;
+            while(minesPlaced < minesCount) {
                 const x = Math.floor(Math.random() * rows);
                 const y = Math.floor(Math.random() * cols);
                 if (!grid[x][y].isMine) {
                     grid[x][y].isMine = true;
                     mines.push([x, y]);
+                    minesPlaced++;
                 }
             }
 
@@ -418,6 +461,7 @@
                         td.classList.add('wrong-flag');
                     }
 
+                    // 事件绑定
                     td.addEventListener('click', () => !gameOver && reveal(x, y));
                     td.addEventListener('dblclick', (e) => {
                         e.preventDefault();
@@ -439,7 +483,10 @@
         }
 
         // 初始化游戏
-        initGame();
+        window.onload = function() {
+            setDifficulty();
+            initGame();
+        };
     </script>
 </body>
 </html>
