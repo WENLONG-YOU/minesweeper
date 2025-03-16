@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>完整功能扫雷游戏</title>
+    <style>
+        :root {
+            --neon-color: #0ff;
+            --cell-size: 35px;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #1a1a1a;
+            font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+            margin: 0;
+        }
+
+        .game-container {
+            display: flex;
+            gap: 30px;
+            padding: 25px;
+            background: #2a2a2a;
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.2);
+        }
+
+        .config-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding: 20px;
+            background: #333;
+            border-radius: 10px;
+            border: 2px solid var(--neon-color);
+        }
+
+        .config-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            color: var(--neon-color);
+        }
+
+        input {
+            padding: 8px;
+            background: #444;
+            border: 1px solid var(--neon-color);
+            color: var(--neon-color);
+            border-radius: 5px;
+            width: 120px;
+        }
+
+        button {
+            padding: 10px;
+            background: #444;
+            border: 2px solid var(--neon-color);
+            color: var(--neon-color);
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: var(--neon-color);
+            color: #000;
+        }
+
+        .grid {
+            border: 3px solid var(--neon-color);
+            border-radius: 8px;
+            background: #222;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+        }
+
+        .cell {
+            width: var(--cell-size);
+            height: var(--cell-size);
+            border: 2px solid;
+            border-color: #666 #444 #444 #666;
+            text-align: center;
+            font-weight: bold;
+            cursor: pointer;
+            background: #3a3a3a;
+            position: relative;
+            transition: all 0.1s;
+            color: var(--neon-color);
+            text-shadow: 0 0 5px var(--neon-color);
+        }
+
+        .cell:active:not(.revealed) {
+            transform: scale(0.95);
+        }
+
+        .revealed {
+            border-color: #444;
+            background: #222;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        .mine {
+            background: #f00;
+            box-shadow: 0 0 15px #f00;
+        }
+
+        .status {
+            padding: 15px;
+            font-size: 20px;
+            background: #333;
+            border-radius: 8px;
+            border: 2px solid var(--neon-color);
+            color: var(--neon-color);
+            text-align: center;
+            margin-bottom: 20px;
+            text-shadow: 0 0 5px var(--neon-color);
+        }
+
+        .info-panel {
+            padding: 15px;
+            border: 2px solid var(--neon-color);
+            border-radius: 8px;
+            background: #333;
+            min-width: 120px;
+        }
+
+        .info-item {
+            margin: 12px 0;
+            font-size: 18px;
+            color: var(--neon-color);
+            text-shadow: 0 0 5px var(--neon-color);
+        }
+
+        .neon-text {
+            animation: neonGlow 1.5s ease-in-out infinite alternate;
+        }
+
+        .cell.wrong-flag::after {
+            content: "❌";
+            color: #ff0000;
+            position: absolute;
+            font-size: 24px;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        @keyframes neonGlow {
+            from {
+                text-shadow: 0 0 5px var(--neon-color),
+                           0 0 10px var(--neon-color),
+                           0 0 15px var(--neon-color);
+            }
+            to {
+                text-shadow: 0 0 10px var(--neon-color),
+                           0 0 20px var(--neon-color),
+                           0 0 30px var(--neon-color);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div>
+            <div class="status" id="status">点击开始</div>
+            <table class="grid" id="grid"></table>
+        </div>
+        
+        <div class="config-panel">
+            <div class="info-panel">
+                <div class="info-item">总雷数: <span class="neon-text" id="total-mines">3</span></div>
+                <div class="info-item">已标记: <span class="neon-text" id="flags-marked">0</span></div>
+            </div>
+            
+            <div class="config-item">
+                <label>行数:</label>
+                <input type="number" id="rows" value="5" min="3" max="10">
+            </div>
+            
+            <div class="config-item">
+                <label>列数:</label>
+                <input type="number" id="cols" value="5" min="3" max="10">
+            </div>
+            
+            <div class="config-item">
+                <label>雷数:</label>
+                <input type="number" id="mines" value="3" min="1" max="20">
+            </div>
+            
+            <button onclick="initGame()">开始游戏</button>
+        </div>
+    </div>
+
+    <script>
+        let rows = 5;
+        let cols = 5;
+        let minesCount = 3;
+        let grid = [];
+        let mines = [];
+        let gameOver = false;
+        let flagsMarked = 0;
+
+        function initGame() {
+            // 读取并验证参数
+            rows = Math.min(Math.max(parseInt(document.getElementById('rows').value) || 5, 3), 10);
+            cols = Math.min(Math.max(parseInt(document.getElementById('cols').value) || 5, 3), 10);
+            const maxMines = Math.floor(rows * cols * 0.3);
+            minesCount = Math.min(Math.max(parseInt(document.getElementById('mines').value) || 3, 1), maxMines);
+            
+            // 更新显示
+            document.getElementById('rows').value = rows;
+            document.getElementById('cols').value = cols;
+            document.getElementById('mines').value = minesCount;
+            document.getElementById('total-mines').textContent = minesCount;
+
+            // 初始化游戏状态
+            gameOver = false;
+            flagsMarked = 0;
+            document.getElementById('status').className = 'status';
+            document.getElementById('status').textContent = '游戏进行中...';
+            document.getElementById('flags-marked').textContent = '0';
+
+            // 创建网格
+            grid = Array(rows).fill().map(() => 
+                Array(cols).fill().map(() => ({
+                    revealed: false,
+                    isMine: false,
+                    count: 0,
+                    flagged: false,
+                    wrongFlag: false
+                }))
+            );
+
+            // 布置地雷
+            mines = [];
+            while(mines.length < minesCount) {
+                const x = Math.floor(Math.random() * rows);
+                const y = Math.floor(Math.random() * cols);
+                if (!grid[x][y].isMine) {
+                    grid[x][y].isMine = true;
+                    mines.push([x, y]);
+                }
+            }
+
+            // 计算相邻雷数
+            for(let x = 0; x < rows; x++) {
+                for(let y = 0; y < cols; y++) {
+                    if(!grid[x][y].isMine) {
+                        grid[x][y].count = countMines(x, y);
+                    }
+                }
+            }
+
+            renderGrid();
+        }
+
+        function countMines(x, y) {
+            let count = 0;
+            for(let dx = -1; dx <= 1; dx++) {
+                for(let dy = -1; dy <= 1; dy++) {
+                    const nx = x + dx;
+                    const ny = y + dy;
+                    if(nx >= 0 && nx < rows && ny >= 0 && ny < cols) {
+                        if(grid[nx][ny].isMine) count++;
+                    }
+                }
+            }
+            return count;
+        }
+
+        function reveal(x, y) {
+            if(gameOver || grid[x][y].revealed || grid[x][y].flagged) return;
+            
+            grid[x][y].revealed = true;
+            
+            if(grid[x][y].isMine) {
+                gameOver = true;
+                showAllMines();
+                document.getElementById('status').className = 'status fail';
+                document.getElementById('status').textContent = '游戏失败！点击重新开始';
+                return;
+            }
+
+            if(grid[x][y].count === 0) {
+                const queue = [[x, y]];
+                const visited = new Set();
+                
+                while(queue.length > 0) {
+                    const [cx, cy] = queue.shift();
+                    const key = `${cx},${cy}`;
+                    
+                    if(visited.has(key)) continue;
+                    visited.add(key);
+                    
+                    for(let dx = -1; dx <= 1; dx++) {
+                        for(let dy = -1; dy <= 1; dy++) {
+                            const nx = cx + dx;
+                            const ny = cy + dy;
+                            if(nx >= 0 && nx < rows && ny >= 0 && ny < cols) {
+                                const cell = grid[nx][ny];
+                                if(!cell.revealed && !cell.flagged) {
+                                    cell.revealed = true;
+                                    if(cell.count === 0) {
+                                        queue.push([nx, ny]);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            checkWin();
+            renderGrid();
+        }
+
+        function handleChord(x, y) {
+            if (gameOver || !grid[x][y].revealed || grid[x][y].count === 0) return;
+
+            const currentCell = grid[x][y];
+            const neighbors = getNeighbors(x, y);
+            
+            const flagCount = neighbors.reduce((acc, [nx, ny]) => 
+                acc + (grid[nx][ny].flagged ? 1 : 0), 0);
+
+            if (flagCount !== currentCell.count) return;
+
+            let hasError = false;
+            neighbors.forEach(([nx, ny]) => {
+                const cell = grid[nx][ny];
+                if (cell.flagged && !cell.isMine) {
+                    hasError = true;
+                    cell.wrongFlag = true;
+                }
+            });
+
+            if (hasError) {
+                gameOver = true;
+                showAllMines();
+                document.getElementById('status').className = 'status fail';
+                document.getElementById('status').textContent = '标记错误！点击重新开始';
+                renderGrid();
+                return;
+            }
+
+            neighbors.forEach(([nx, ny]) => {
+                if (!grid[nx][ny].flagged && !grid[nx][ny].revealed) {
+                    reveal(nx, ny);
+                }
+            });
+        }
+
+        function getNeighbors(x, y) {
+            const neighbors = [];
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dy = -1; dy <= 1; dy++) {
+                    if (dx === 0 && dy === 0) continue;
+                    const nx = x + dx;
+                    const ny = y + dy;
+                    if (nx >= 0 && nx < rows && ny >= 0 && ny < cols) {
+                        neighbors.push([nx, ny]);
+                    }
+                }
+            }
+            return neighbors;
+        }
+
+        function showAllMines() {
+            mines.forEach(([x, y]) => {
+                grid[x][y].revealed = true;
+                grid[x][y].flagged = false;
+            });
+            flagsMarked = 0;
+            renderGrid();
+        }
+
+        function checkWin() {
+            const win = grid.flat().every(cell => 
+                cell.isMine ? true : cell.revealed
+            );
+            
+            if(win) {
+                gameOver = true;
+                mines.forEach(([x, y]) => grid[x][y].flagged = true);
+                flagsMarked = minesCount;
+                document.getElementById('status').textContent = '扫雷成功！';
+                document.getElementById('flags-marked').textContent = minesCount;
+                renderGrid();
+            }
+        }
+
+        function renderGrid() {
+            const table = document.getElementById('grid');
+            table.innerHTML = '';
+            
+            for(let x = 0; x < rows; x++) {
+                const tr = document.createElement('tr');
+                for(let y = 0; y < cols; y++) {
+                    const td = document.createElement('td');
+                    td.className = 'cell';
+                    const cell = grid[x][y];
+                    
+                    if(cell.revealed) {
+                        td.classList.add('revealed');
+                        if(cell.isMine) {
+                            td.classList.add('mine');
+                            td.textContent = '💣';
+                        } else if(cell.count > 0) {
+                            td.textContent = cell.count;
+                        }
+                    } else if(cell.flagged) {
+                        td.textContent = '🚩';
+                    }
+
+                    if (gameOver && cell.wrongFlag) {
+                        td.classList.add('wrong-flag');
+                    }
+
+                    td.addEventListener('click', () => !gameOver && reveal(x, y));
+                    td.addEventListener('dblclick', (e) => {
+                        e.preventDefault();
+                        handleChord(x, y);
+                    });
+                    td.addEventListener('contextmenu', (e) => {
+                        e.preventDefault();
+                        if(!gameOver && !cell.revealed) {
+                            cell.flagged = !cell.flagged;
+                            flagsMarked += cell.flagged ? 1 : -1;
+                            document.getElementById('flags-marked').textContent = flagsMarked;
+                            renderGrid();
+                        }
+                    });
+                    tr.appendChild(td);
+                }
+                table.appendChild(tr);
+            }
+        }
+
+        // 初始化游戏
+        initGame();
+    </script>
+</body>
+</html>
